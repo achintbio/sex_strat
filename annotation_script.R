@@ -19,6 +19,7 @@ library(illuminaHumanv3.db)
 library(GO.db)
 library(org.Hs.eg.db)
 library(pd.hugene.1.0.st.v1)
+library(illuminaHumanv4.db)
 
 largest_var_picker <- function(x){
   dataset_expr_c <- subset(clean_data_t, clean_data_t$entidc == x) 
@@ -27,21 +28,21 @@ largest_var_picker <- function(x){
   return(dataset_expr_c[1,ncol(dataset_expr_c)]) 
 }
 
-clean_data_fin_t <- clean_data_m
-annotation_object <- hugene10sttranscriptclusterSYMBOL
+clean_data_fin_t <- clean_mat_ad
+annotation_object <- hgu133plus2SYMBOL
+rownames(clean_data_fin_t) <- rownames(eset_ae_ad_hip)
+colnames(clean_data_fin_t) <- colnames(eset_ae_ad_pb)
 
-chip_entrez  <- hugene10sttranscriptclusterENTREZID
-annotation_function <- function(clean_data_fin_t,annotation_object) { 
   
-  
-  
-   
    annotation_object_ent  <- annotation_object                       # Annotation Object converting hgu133plus2 specific probe IDS to Entrez Gene Names
-   mapped_probes          <- mappedkeys(annotation_object_ent)                 # find the probe IDS which have a mapping to the Entrez ID   
+   mapped_probes          <- mappedkeys(annotation_object_ent)     
+   mapped_probes_l        <- as.list(annotation_object_ent[mapped_probes])# find the probe IDS which have a mapping to the Entrez ID   
 #mapped_probes_gol     <- as.list(annotation_object_sym[mapped_probes])
 
 
-  clean_data_t          <- as.data.frame(t(as.matrix(clean_data_fin_t)))       # convert expression matrix to a dataframe with the genes as rows 
+  clean_data_t          <- as.data.frame(t(as.matrix(clean_data_fin_t))) 
+  rownames(clean_data_t) <- colnames(clean_data_fin_t)
+  colnames(clean_data_t) <- rownames(clean_data_fin_t)# convert expression matrix to a dataframe with the genes as rows 
   clean_data_t$chk      <- rownames(clean_data_t) %in% mapped_probes        # find which genes are mapped 
   clean_data_t          <- subset(clean_data_t, clean_data_t$chk == TRUE)   # drop genes which aren't mapped
 
@@ -49,9 +50,9 @@ annotation_function <- function(clean_data_fin_t,annotation_object) {
   clean_data_t$entidc  <- as.character(clean_data_t$entid)                  # Convert to character         # 
 
 
-  expr_mat_clean      <- as.matrix(clean_data_t[,1:nrow(hip_pData)])                     # Drop the redundant columns
+  expr_mat_clean      <- as.matrix(clean_data_t[,1:nrow(clean_mat_ad)])                     # Drop the redundant columns
   var_by_sample       <- apply(expr_mat_clean,1, var)                        # Find Variance by row to resolve ties between probes
-  clean_data_t$var    <- var_by_sample                                       # Add variances to the expression matrix
+  clean_data_t$var    <- as.numeric(var_by_sample)                                       # Add variances to the expression matrix
   clean_data_t$dup    <- duplicated(clean_data_t$entidc)                     # Find which entrez IDs are duplicated
   dup_ID_df           <- subset(clean_data_t, clean_data_t$dup == TRUE)      # create a data frame with all duplicated ids
   ent_id_occ          <- dup_ID_df$entidc                                    # 
@@ -67,21 +68,14 @@ annotation_function <- function(clean_data_fin_t,annotation_object) {
   clean_data_dup     <- subset(clean_data_dup, clean_data_dup$lv == TRUE)    # Keep the IDS with the larger Variance  
   clean_data_ndup    <- subset(clean_data_t, clean_data_t$dup == FALSE)
   names_row          <- rbind(matrix(clean_data_dup$entidc,ncol =1), matrix(clean_data_ndup$entidc,ncol = 1))
-  clean_data_dup     <- clean_data_dup[,1:nrow(hip_pData)]
-  clean_data_ndup    <- clean_data_ndup[,1:nrow(hip_pData)]
+  clean_data_dup     <- clean_data_dup[,1:nrow(clean_mat_ad)]
+  clean_data_ndup    <- clean_data_ndup[,1:nrow(clean_mat_ad)]
 
   clean_data_fin           <- rbind(clean_data_dup, clean_data_ndup)
   rownames(clean_data_fin) <- names_row
 #clean_data_fin           <- clean_data_fin[,1:ncol(eset_AE_AD)]
 
-  clean_data_fin_t             <- as.data.frame(cbind(t(as.matrix(clean_data_fin)),as.character(hip_pData$FactorValue.disease.),as.character( hip_pData$Characteristics..sex.)))
-  colnames(clean_data_fin_t)   <- c(rownames(clean_data_fin), "case" ,"sex") 
-  rownames(clean_data_fin_t)   <- hip_pData$Source.Name
-
-return(clean_data_fin_t)
-} 
-x <- colnames(clean_data_fin_t)
+  clean_data_final            <- as.data.frame(cbind(t(as.matrix(clean_data_fin)),as.character(clean_data_m$case),as.character(clean_data_m$sex)))
+  colnames(clean_data_final)   <- c(rownames(clean_data_fin), "case" ,"sex") ) 
 
 
-clean_data_fin_t <- eset_ae_ad_tx
-clean_data_fin_t <- annotation_function(clean_data_m, hugene10sttranscriptclusterSYMBOL)
