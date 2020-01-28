@@ -24,6 +24,7 @@
 
 ##### SET PARAMETERS #####
 rm( list = ls() )
+library(ArrayExpress)
 require(affycoretools)
 library(rlang)
 library(Biobase)
@@ -59,27 +60,15 @@ rownames(AE_AD_pData)   <- gsub(".CEL", "" , rownames(AE_AD_pData))
 colnames(eset_ae_ad)    <- gsub(".CEL", "" , colnames(eset_ae_ad))
 
 eset_ae_ad_t            <- as.data.frame(t(eset_ae_ad))
-#eset_ae_ad_t            <- as.data.frame(cbind(eset_ae_ad_t, link_expr_pheno))
-#eset_ae_ad_t            <- eset_ae_ad_t[,1:ncol(eset_ae_ad_t) -1 ]
+
+
 eset_ae_ad_t$link_expr_pheno <- rownames(eset_ae_ad_t) %in% rownames(AE_AD_pData)
 eset_ae_ad_t            <- subset(eset_ae_ad_t, eset_ae_ad_t$link_expr_pheno == TRUE)
-eset_ae_ad_t            <- eset_ae_ad_t[ ,1:54675]
-#col_map_feat            <- colnames(eset_ae_ad_t) %in% feat_expr$PROBEID
-#eset_ae_ad_f            <- as.data.frame(rbind(eset_ae_ad_t, col_map_feat))
-#eset_ae_ad_f            <- as.data.frame(as.matrix(t(eset_ae_ad_f)))
-
-#colnames(eset_ae_ad_f)  <- c(AE_AD_pData$Source.Name, "link")
-#eset_ae_ad_f            <- subset(eset_ae_ad_f, eset_ae_ad_f$link == 1)
-#eset_ae_ad_f1           <- eset_ae_ad_f[ AE_AD_pData$Source.Name]
-#eset_ae_ad_f            <- eset_ae_ad_f1
-#eset_ae_ad_f            <- as.data.frame(cbind(eset_ae_ad_f), names_vec)
-#rm(eset_ae_ad_f1)
-
-#eset_ae_ad_t            <- as.data.frame(t(as.matrix(eset_ae_ad_f)))
+eset_ae_ad_t            <- eset_ae_ad_t[ ,1:nrow(eset_ae_ad)]
 
 rm(eset_ae_ad_f)
 
-eset_ae_ad_p            <- as.data.frame(cbind(eset_ae_ad_t, AE_AD_pData$Characteristics.sex., AE_AD_pData$FactorValue..disease.))
+eset_ae_ad_p            <- as.data.frame(cbind(eset_ae_ad_t, AE_AD_pData$Characteristics..sex. ,AE_AD_pData$Factor.Value..disease.)) # combine gene expression matrix with case status and gender
 
 colnames(eset_ae_ad_p)  <- c(colnames(eset_ae_ad_t), "sex", "disease" )
 
