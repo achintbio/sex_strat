@@ -1,6 +1,7 @@
 install.packages("DatABEL",repos = "http://R-Forge.R-project.org")
 BiocManager::install("GenABEL")
 rm(list = ls() )
+library(tidyr)
 library(rlang)
 library(digest)
 library(DESeq2)
@@ -25,7 +26,7 @@ library(dict)
 library(cluster)
 library(DatABEL)
 library(MetaIntegrator)
-expr_m <- clean_data_fin_t
+expr_m <- exp_df_male
 
 exprs_analysis <- function(expr_m){
 
@@ -55,16 +56,16 @@ exprs_analysis <- function(expr_m){
   dataset_exprs_contrast_matrix <- makeContrasts(case-intercept, levels=design)                      # create design matrix 
   dataset_exprs_contrast_fit    <- contrasts.fit(dataset_exprs_fit, dataset_exprs_contrast_matrix) # contrasts between the two datasets
   # Extract a table of top ranked genes 
-  dataset_exprs_ebayes_fit      <- eBayes(dataset_exprs_contrast_fit, robust = T )
+  dataset_exprs_ebayes_fit      <- eBayes(dataset_exprs_fit, robust = T )
 
-  dataset_exprs_top_genes_wc    <- topTable(dataset_exprs_ebayes_fit,number = nrow(transposed_dataset_exprs), adjust.method = "fdr", confint = TRUE)
+  dataset_exprs_top_genes_wc    <- topTable(dataset_exprs_ebayes_fit,number = nrow(transposed_dataset_exprs),coef =2,adjust.method = "fdr", confint = TRUE)
   #dataset_exprs_top_genes_int   <- topTreat(dataset_exprs_treat_fit, coef = 2,number = nrow(transposed_dataset_exprs), adjust.method = "fdr", confint = TRUE)
   
    
   return(dataset_exprs_top_genes_wc)
 }
 
-expr_m <- clean_data_fin_t
+expr_m <- clean_data_hip
 sex_exprs_analysis <- function(expr_m){
   
   n_cols <- ncol(expr_m) - 2    # Final two columns containing phenotype data
@@ -84,7 +85,7 @@ sex_exprs_analysis <- function(expr_m){
   #rownames(dataset_exprs)<-c(1:dim(expr_m)[1])
   # setup experimental desgin
   #design_dataframe  <- as.data.frame(cbind(replicate(nrow(pheno))))
-  pheno[,2]        <- factor(pheno[,2], levels = c("normal", "Alzheimer's disease"))
+  pheno[,2]        <- factor(pheno[,2], levels = c("normal", "Alzheimers disease"))
   design            <- model.matrix(~pheno[,2]*pheno[,3] )
   # change colnames to Case and Control
   colnames(design) <- c("intercept", "case", "male","case_t_male")
@@ -172,40 +173,27 @@ sva_cleaning_mat <- function(edat){
 # Robust Spline Normalization, Background Correction and Log2 transformation of the expression matrix, use IF AND ONLY IF
 # you are unable to extract expression data from "good_run_script.R"
 
- n_m_two    <- ncol(eset_ae_ad_hip) - 2
-#expr_ae_ad  <- eset_ae_ad_p[,1:n_m_two]
 
-expr_ae_ad <- as.matrix(eset_ae_ad_hip[,1:n_m_two])
-colnames(expr_ae_ad) <- colnames(eset_ae_ad_hip[,1:n_m_two])
-rownames(expr_ae_ad) <- rownames(eset_ae_ad_hip[,1:n_m_two])
-expr_ae_ad <- apply(expr_ae_ad,2,as.numeric)
-#rownames(expr_ae_ad) <- rownames(eset_ae_ad_t)ls
-#colnames(expr_ae_ad) <- colnames(eset_ae_ad_t)
+probes_names  <- extract_good_probe_list(eset_ae_ad_t)
 
-probes_names  <- extract_good_probe_list(t(expr_ae_ad))
-rownames(eset_ae_ad) <- colnames(expr_ae_ad)
-colnames(eset_ae_ad) <- rownames(expr_ae_ad)
-rowname_vec2  <- rownames(eset_ae_ad)
-
-expr_ae_ad    <- expr_ae_ad[,colnames(expr_ae_ad) %in% probes_names]
+eset_ae_ad_p  <- eset_ae_ad_p[, colnames(eset_ae_ad_p) %in% c(probes_names, "case", "sex")]
 
 
-eset_ae_ad_pb <- as.data.frame(cbind(expr_ae_ad,hip_pData$FactorValue.disease.,hip_pData$Characteristics..sex.))
-colnames(eset_ae_ad_pb) <- c(probes_names, "case", "sex")
-#colnames(eset_ae_ad_pb)  <-  AE_AD_pData$IID
 
 
-rownames(eset_ae_ad_pb) <- hip_pData$Source.Name
+clean_mat_ad    <- sva_cleaning_mat(eset_ae_ad_p)
 
-clean_mat_ad    <- sva_cleaning_mat(eset_ae_ad_pb)
+# Jump to QC_Plots for outlier detection and check for batch effects
 sva_check       <- sva_cleaning_mat(clean_mat_ad)
+
+dimnames(clean_mat_ad) <- dimnames(eset_ae_ad_pb)
 #expr_ae_ad <- as.matrix(eset_ae_ad_pb[,1:2063])
 #expr_ae_ad <- apply(expr_ae_ad,2,as.numeric)
 
 
 #clean_data_m           <- as.data.frame(cbind(t(clean_mat_ad)))
 clean_data             <- as.data.frame(clean_mat_ad)
-clean_data_m           <- as.data.frame(cbind(clean_mat_ad, hip_pData$FactorValue.disease., hip_pData$Characteristics..sex.))
+clean_data_m           <- as.data.frame(cbind(clean_mat_ad, eset_ae_ad_p$case, eset_ae_ad_p$sex))
 
 colnames(clean_data_m) <- c(colnames(clean_mat_ad), "case","sex")
 
@@ -215,41 +203,29 @@ colnames(clean_data_m) <- c(colnames(clean_mat_ad), "case","sex")
 
 
 
-# Need to annotate chip specific names to Entrez IDs
+# Need to annotate chip specific names to Entrez IDs- jump to annotation script
 
 
-exp_df_wo_s  <- exprs_analysis(clean_data_final)[[1]]
+
+
 #exp_df_wo_s  <- subset(exp_df_wo_s, exp_df_wo_s$adj.P.Val < 0.05 )
-clean_data_final <- as.data.frame(t(as.matrix(clean_data_fin)))
-c_names          <- colnames(clean_data_final)
-clean_data_final <- as.data.frame(cbind(clean_data_final, AE_AD_pData$FactorValue..disease., AE_AD_pData$Characteristics.sex.))
-
-colnames(clean_data_final)  <- c(c_names,"case", "sex")
 
 
-clean_data_fin_t$case <- ifelse(clean_data_fin_t$case == "AD","AD","normal")
-exp_df_male  <- subset(clean_data_fin_t, clean_data_fin_t$sex == "male")
-exp_df_fem   <- subset(clean_data_fin_t, clean_data_fin_t$sex == "female")
+
+exp_df_male  <- subset(clean_data_final, clean_data_final$sex %in% c( "male","MALE","M","m"))
+exp_df_fem   <- subset(clean_data_final, clean_data_final$sex %in% c("female", "FEMALE","F","f"))
 
 results_limma_male        <- exprs_analysis(exp_df_male)
 results_limma_female      <- exprs_analysis(exp_df_fem)
 
-results_limma_male_comp  <- exprs_analysis(exp_df_male)
-results_limma_male_t     <- exprs_analysis(exp_df_male)[[2]]
 
 
-exp_df_ma$fc      <- 2^exp_df_ma$logFC
-exp_df_f$fc      <- 2^exp_df_f$logFC
-exp_df_wo_s$fc   <- 2^exp_df_wo_s$logFC 
-expression_matrix <- clean_data_final[,1:2742]
-expression_matrix <- apply(expression_matrix,2,as.numeric)
-sst <- rowSums(t(expression_matrix)^2)
-ssr <- sst - results_limma_male_comp[[2]]$df.residual * results_limma_male_comp[[2]]$sigma^2
-file_name
-rsq <- ssr/sst
 
-write.csv(results_limma_male, paste0("male_hip_",file_name,".csv"))
-write.csv(results_limma_female, paste0("female_hip_",file_name,".csv"))
-save.image(paste0(file_name, "_hip.RData"))
+
+#write.csv(results_limma_male, paste0("male_ec_",file_name,".csv"))
+#write.csv(results_limma_female, paste0("female_ec_",file_name,".csv"))
+
+setwd("C:/Users/axv851/Documents/Meta_Analysis_Pre_Processing/Analysis/r_images")
+save.image(paste0(file_name, ".RData"))
 
 write.table(x = as.matrix(clean_data_fin_t),file = paste0(file_name,"_eset_final.txt"), sep = "\t",row.names = TRUE, col.names = TRUE)
